@@ -8,17 +8,20 @@ import os
 import time
 import sys
 
+# Import streamlit first so we can show errors
+import streamlit as st
+
 # Try importing OpenCV with better error handling
 try:
     import cv2
 except ImportError as e:
-    import streamlit as st
     st.error(f"❌ Failed to import OpenCV: {str(e)}")
     st.error("Please ensure opencv-python-headless is installed and system dependencies are available.")
+    st.error(f"Python version: {sys.version}")
+    st.error(f"Python executable: {sys.executable}")
     st.stop()
 
 import numpy as np
-import streamlit as st
 import tensorflow as tf
 from tensorflow import keras
 from PIL import Image
