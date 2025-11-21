@@ -1,0 +1,42 @@
+# Ignore everything except webapp and model folders
+*
+
+# But include webapp folder
+!webapp/
+
+# But include model folder
+!model/
+
+# Allow Streamlit Cloud configuration files at root
+!requirements.txt
+!packages.txt
+!runtime.txt
+
+# Ignore common files/folders
+.DS_Store
+Thumbs.db
+*.pyc
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+*.log
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# But allow webapp files
+!webapp/**
+!webapp/**
+
+# But allow model files
+!model/**
+!model/**
+
