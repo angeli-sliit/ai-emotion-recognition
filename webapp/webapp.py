@@ -727,28 +727,54 @@ IMG_SIZE = 224
 # ─────────────────────────────────────────────────────────────
 # Model loading
 # ─────────────────────────────────────────────────────────────
+# Get the base directory (parent of webapp directory)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+WEBAPP_DIR = os.path.dirname(os.path.abspath(__file__))
+
 MODEL_PATH = None
-for candidate in [
-    "mod_my_model01.keras",
-    "../mod_my_model01.keras",
-    os.path.join(os.path.dirname(os.path.dirname(__file__)), "mod_my_model01.keras"),
-]:
+candidates = [
+    os.path.join(BASE_DIR, "model", "mod_my_model01.keras"),  # model/mod_my_model01.keras from root
+    os.path.join(BASE_DIR, "mod_my_model01.keras"),  # mod_my_model01.keras in root
+    os.path.join(WEBAPP_DIR, "mod_my_model01.keras"),  # webapp/mod_my_model01.keras
+    "mod_my_model01.keras",  # current working directory
+    "../mod_my_model01.keras",  # parent directory (relative)
+    "../model/mod_my_model01.keras",  # model directory (relative)
+]
+
+for candidate in candidates:
     if os.path.exists(candidate):
         MODEL_PATH = candidate
         break
 
 if MODEL_PATH is None:
-    MODEL_PATH = "mod_my_model01.keras"  # fall back path
+    MODEL_PATH = os.path.join(BASE_DIR, "model", "mod_my_model01.keras")  # Default to model directory
 
 
 @st.cache_resource
 def load_model():
     try:
+        if not os.path.exists(MODEL_PATH):
+            st.error(f"Model file not found at: {MODEL_PATH}")
+            st.info("Searched in the following locations:")
+            for i, candidate in enumerate(candidates, 1):
+                exists = "✓" if os.path.exists(candidate) else "✗"
+                st.text(f"{i}. {exists} {candidate}")
+            st.info(f"Current working directory: {os.getcwd()}")
+            st.info(f"Script directory: {os.path.dirname(os.path.abspath(__file__))}")
+            st.info(f"Base directory: {BASE_DIR}")
+            return None
         model = keras.models.load_model(MODEL_PATH)
         return model
     except Exception as e:
         st.error(f"Error loading model: {e}")
         st.info(f"Tried model path: {MODEL_PATH}")
+        st.info("Searched in the following locations:")
+        for i, candidate in enumerate(candidates, 1):
+            exists = "✓" if os.path.exists(candidate) else "✗"
+            st.text(f"{i}. {exists} {candidate}")
+        st.info(f"Current working directory: {os.getcwd()}")
+        st.info(f"Script directory: {os.path.dirname(os.path.abspath(__file__))}")
+        st.info(f"Base directory: {BASE_DIR}")
         return None
 
 
