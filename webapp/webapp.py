@@ -1016,64 +1016,62 @@ def main():
                         # Keep previous emotion if error occurs
                         emotion = st.session_state.last_emotion
                         conf = st.session_state.last_conf
+                
+                emotion = st.session_state.last_emotion
+                conf = st.session_state.last_conf
+                
+                if emotion:
+                    # Draw rectangle and label on the image
+                    color_hex = EMOTION_COLORS.get(emotion, "#6366f1")
+                    color_rgb = tuple(int(color_hex[i : i + 2], 16) for i in (1, 3, 5))
+                    cv2.rectangle(img_array, (x, y), (x + w, y + h), color_rgb, 3)
                     
-                    emotion = st.session_state.last_emotion
-                    conf = st.session_state.last_conf
+                    label = f"{EMOTION_EMOJIS.get(emotion, '😊')} {emotion} ({conf:.0%})"
+                    font = cv2.FONT_HERSHEY_SIMPLEX
+                    (tw, th), baseline = cv2.getTextSize(label, font, 0.7, 2)
+                    cv2.rectangle(
+                        img_array,
+                        (x, y - th - 15),
+                        (x + tw + 10, y),
+                        color_rgb,
+                        -1,
+                    )
+                    cv2.putText(
+                        img_array,
+                        label,
+                        (x + 5, y - 8),
+                        font,
+                        0.7,
+                        (255, 255, 255),
+                        2,
+                    )
                     
-                    if emotion:
-                        # Draw rectangle and label on the image
-                        color_hex = EMOTION_COLORS.get(emotion, "#6366f1")
-                        color_rgb = tuple(int(color_hex[i : i + 2], 16) for i in (1, 3, 5))
-                        cv2.rectangle(img_array, (x, y), (x + w, y + h), color_rgb, 3)
-                        
-                        label = f"{EMOTION_EMOJIS.get(emotion, '😊')} {emotion} ({conf:.0%})"
-                        font = cv2.FONT_HERSHEY_SIMPLEX
-                        (tw, th), baseline = cv2.getTextSize(label, font, 0.7, 2)
-                        cv2.rectangle(
-                            img_array,
-                            (x, y - th - 15),
-                            (x + tw + 10, y),
-                            color_rgb,
-                            -1,
-                        )
-                        cv2.putText(
-                            img_array,
-                            label,
-                            (x + 5, y - 8),
-                            font,
-                            0.7,
-                            (255, 255, 255),
-                            2,
-                        )
-                        
-                        # Display emotion results
-                        color = EMOTION_COLORS.get(emotion, "#6366f1")
-                        emoji = EMOTION_EMOJIS.get(emotion, "😊")
-                        desc = EMOTION_DESCRIPTIONS.get(emotion, "")
-                        emotion_placeholder.markdown(
-                            f"""
-                                <div class="result-card">
-                                <div class="result-emoji">{emoji}</div>
-                                <div class="result-label" style="color:{color};">{emotion}</div>
-                                <div class="result-confidence">Confidence: {conf:.1%}</div>
-                                <div class="result-desc">{desc}</div>
-                                </div>
-                                """,
-                            unsafe_allow_html=True,
-                        )
-                        confidence_placeholder.progress(conf)
-                    else:
-                        emotion_placeholder.info("Processing... Align your face with the camera.")
-                        confidence_placeholder.empty()
-                    
-                    # Display the annotated image
-                    with middle:
-                        video_placeholder.image(img_array, use_container_width=True, channels="RGB")
+                    # Display emotion results
+                    color = EMOTION_COLORS.get(emotion, "#6366f1")
+                    emoji = EMOTION_EMOJIS.get(emotion, "😊")
+                    desc = EMOTION_DESCRIPTIONS.get(emotion, "")
+                    emotion_placeholder.markdown(
+                        f"""
+                            <div class="result-card">
+                            <div class="result-emoji">{emoji}</div>
+                            <div class="result-label" style="color:{color};">{emotion}</div>
+                            <div class="result-confidence">Confidence: {conf:.1%}</div>
+                            <div class="result-desc">{desc}</div>
+                            </div>
+                            """,
+                        unsafe_allow_html=True,
+                    )
+                    confidence_placeholder.progress(conf)
                 else:
-                    emotion_placeholder.info("No face detected. Please ensure your face is clearly visible.")
+                    emotion_placeholder.info("Processing... Align your face with the camera.")
                     confidence_placeholder.empty()
-                    with middle:
-                        video_placeholder.image(img_array, use_container_width=True, channels="RGB")
+                
+                # Display the annotated image
+                with middle:
+                    video_placeholder.image(img_array, use_container_width=True, channels="RGB")
+            else:
+                emotion_placeholder.info("No face detected. Please ensure your face is clearly visible.")
+                confidence_placeholder.empty()
             
             # Auto-refresh for continuous detection
             if st.session_state.webcam_active and st.session_state.auto_capture:
