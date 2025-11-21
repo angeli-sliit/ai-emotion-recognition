@@ -1,10 +1,5 @@
-# Core dependencies
 streamlit>=1.28.0
+tensorflow>=2.13.0,<2.16.0
+opencv-python-headless>=4.8.0
 numpy>=1.24.0,<2.0.0
 Pillow>=10.0.0
-
-# Machine Learning
-tensorflow>=2.13.0,<3.0.0
-
-# Computer Vision (headless version for server deployment)
-opencv-python-headless>=4.8.0
