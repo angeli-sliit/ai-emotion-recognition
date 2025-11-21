@@ -955,16 +955,39 @@ def main():
             # Use Streamlit's native camera_input for live detection
             st.info("📷 **Live Detection:** Click the camera button to capture frames. Enable auto-capture below for continuous detection!")
             
+            # Browser permissions info
+            with st.expander("ℹ️ Camera Access Help", expanded=False):
+                st.markdown("""
+                **If camera doesn't appear:**
+                1. Check browser address bar for camera permission icon 🔒
+                2. Click the icon and allow camera access
+                3. Make sure no other app is using your camera
+                4. Try refreshing the page
+                
+                **Note:** Browser console warnings (like "Unrecognized feature") are normal and don't affect camera functionality.
+                """)
+            
             # Center the camera input
             left, middle, right = st.columns([1, 2, 1])
             with middle:
                 # Use dynamic key for auto-refresh
                 camera_key = f"live_camera_{st.session_state.frame_counter}" if st.session_state.auto_capture else "live_camera"
-                camera_photo = st.camera_input(
-                    "Live emotion detection",
-                    key=camera_key,
-                    help="Click the camera button to capture frames for emotion detection."
-                )
+                try:
+                    camera_photo = st.camera_input(
+                        "Live emotion detection",
+                        key=camera_key,
+                        help="Click the camera button to capture frames for emotion detection. Allow camera access when prompted."
+                    )
+                except Exception as e:
+                    st.error(f"❌ Camera access error: {str(e)}")
+                    st.info("""
+                    **Troubleshooting:**
+                    - Check browser permissions (click 🔒 in address bar)
+                    - Ensure camera is not used by another application
+                    - Try using a different browser (Chrome, Firefox, Edge)
+                    - Make sure you're using HTTPS (required for camera access)
+                    """)
+                    camera_photo = None
             
             # Auto-capture controls
             auto_col1, auto_col2 = st.columns([1, 1])
