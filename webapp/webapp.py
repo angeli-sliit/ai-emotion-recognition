@@ -731,7 +731,9 @@ MODEL_PATH = None
 for candidate in [
     "mod_my_model01.keras",
     "../mod_my_model01.keras",
+    "../model/mod_my_model01.keras",
     os.path.join(os.path.dirname(os.path.dirname(__file__)), "mod_my_model01.keras"),
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "model", "mod_my_model01.keras"),
 ]:
     if os.path.exists(candidate):
         MODEL_PATH = candidate
