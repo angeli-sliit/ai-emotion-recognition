@@ -942,31 +942,57 @@ def main():
                 st.rerun()
 
         if st.session_state.webcam_active:
-            # Use Streamlit's native camera_input (works in browser, including Streamlit Cloud)
-            st.info("📷 **Camera access:** Click the button below to capture a photo. The app will analyze it automatically.")
+            # Initialize session state for live detection
+            if "last_emotion" not in st.session_state:
+                st.session_state.last_emotion = None
+            if "last_conf" not in st.session_state:
+                st.session_state.last_conf = 0.0
+            if "frame_counter" not in st.session_state:
+                st.session_state.frame_counter = 0
+            if "auto_capture" not in st.session_state:
+                st.session_state.auto_capture = False
+            
+            # Use Streamlit's native camera_input for live detection
+            st.info("📷 **Live Detection:** Click the camera button to capture frames. Enable auto-capture below for continuous detection!")
             
             # Center the camera input
             left, middle, right = st.columns([1, 2, 1])
             with middle:
+                # Use dynamic key for auto-refresh
+                camera_key = f"live_camera_{st.session_state.frame_counter}" if st.session_state.auto_capture else "live_camera"
                 camera_photo = st.camera_input(
-                    "Take a photo for emotion detection",
-                    key="camera_input",
-                    help="Click the camera button to capture a photo. The app will detect your face and analyze your emotion."
+                    "Live emotion detection",
+                    key=camera_key,
+                    help="Click the camera button to capture frames for emotion detection."
                 )
+            
+            # Auto-capture controls
+            auto_col1, auto_col2 = st.columns([1, 1])
+            with auto_col1:
+                if st.button("🔄 Enable Auto-Capture", use_container_width=True, disabled=st.session_state.auto_capture):
+                    st.session_state.auto_capture = True
+                    st.session_state.frame_counter += 1
+                    st.rerun()
+            with auto_col2:
+                if st.button("⏸️ Disable Auto-Capture", use_container_width=True, disabled=not st.session_state.auto_capture):
+                    st.session_state.auto_capture = False
+                    st.rerun()
             
             emotion_placeholder = st.empty()
             confidence_placeholder = st.empty()
+            video_placeholder = st.empty()
             
+            # Process camera input for live detection
             if camera_photo is not None:
                 # Convert camera photo to PIL Image
                 img = Image.open(camera_photo)
                 img_array = np.array(img)
                 
-                # Convert to RGB if needed
-                if len(img_array.shape) == 3 and img_array.shape[2] == 4:
-                    img_array = cv2.cvtColor(img_array, cv2.COLOR_RGBA2RGB)
-                elif len(img_array.shape) == 3:
-                    img_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2RGB)
+                # Convert to RGB if needed (fix the bug - RGB2RGB doesn't exist)
+                if len(img_array.shape) == 3:
+                    if img_array.shape[2] == 4:  # RGBA
+                        img_array = cv2.cvtColor(img_array, cv2.COLOR_RGBA2RGB)
+                    # If already RGB (shape[2] == 3), no conversion needed - it's already RGB
                 
                 # Detect faces using OpenCV
                 cascade = cv2.CascadeClassifier(
@@ -984,7 +1010,17 @@ def main():
                         emotion, conf, all_preds = predict_emotion(
                             model, Image.fromarray(face_roi)
                         )
-                        
+                        st.session_state.last_emotion = emotion
+                        st.session_state.last_conf = conf
+                    except Exception as e:
+                        # Keep previous emotion if error occurs
+                        emotion = st.session_state.last_emotion
+                        conf = st.session_state.last_conf
+                    
+                    emotion = st.session_state.last_emotion
+                    conf = st.session_state.last_conf
+                    
+                    if emotion:
                         # Draw rectangle and label on the image
                         color_hex = EMOTION_COLORS.get(emotion, "#6366f1")
                         color_rgb = tuple(int(color_hex[i : i + 2], 16) for i in (1, 3, 5))
@@ -1010,10 +1046,6 @@ def main():
                             2,
                         )
                         
-                        # Display the annotated image
-                        with middle:
-                            st.image(img_array, use_container_width=True, channels="RGB")
-                        
                         # Display emotion results
                         color = EMOTION_COLORS.get(emotion, "#6366f1")
                         emoji = EMOTION_EMOJIS.get(emotion, "😊")
@@ -1030,24 +1062,24 @@ def main():
                             unsafe_allow_html=True,
                         )
                         confidence_placeholder.progress(conf)
-                        
-                        # Show all predictions
-                        if all_preds:
-                            st.markdown("**All emotion predictions:**")
-                            sorted_preds = sorted(all_preds.items(), key=lambda x: x[1], reverse=True)
-                            pred_text = "<div style='margin-top:1rem;'>"
-                            for emo, conf in sorted_preds:
-                                emoji = EMOTION_EMOJIS.get(emo, "😊")
-                                color = EMOTION_COLORS.get(emo, "#6366f1")
-                                pred_text += f"<div style='display:flex;justify-content:space-between;padding:0.5rem;margin:0.25rem 0;background:rgba(99,102,241,0.1);border-radius:6px;border-left:3px solid {color};'><span>{emoji} <strong>{emo}</strong></span><span>{conf:.1%}</span></div>"
-                            pred_text += "</div>"
-                            st.markdown(pred_text, unsafe_allow_html=True)
-                    except Exception as e:
-                        st.error(f"Error processing image: {str(e)}")
-                else:
-                    st.warning("⚠️ No face detected in the image. Please ensure your face is clearly visible and try again.")
+                    else:
+                        emotion_placeholder.info("Processing... Align your face with the camera.")
+                        confidence_placeholder.empty()
+                    
+                    # Display the annotated image
                     with middle:
-                        st.image(img_array, use_container_width=True, channels="RGB")
+                        video_placeholder.image(img_array, use_container_width=True, channels="RGB")
+                else:
+                    emotion_placeholder.info("No face detected. Please ensure your face is clearly visible.")
+                    confidence_placeholder.empty()
+                    with middle:
+                        video_placeholder.image(img_array, use_container_width=True, channels="RGB")
+            
+            # Auto-refresh for continuous detection
+            if st.session_state.webcam_active and st.session_state.auto_capture:
+                time.sleep(1.0)  # Wait 1 second between captures
+                st.session_state.frame_counter += 1
+                st.rerun()
         else:
             st.info("Press **Start live detection** to activate the webcam.")
 
