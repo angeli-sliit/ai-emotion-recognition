@@ -6,8 +6,17 @@ Position your face in front of the camera for live emotion analysis.
 
 import os
 import time
+import sys
 
-import cv2
+# Try importing OpenCV with better error handling
+try:
+    import cv2
+except ImportError as e:
+    import streamlit as st
+    st.error(f"❌ Failed to import OpenCV: {str(e)}")
+    st.error("Please ensure opencv-python-headless is installed and system dependencies are available.")
+    st.stop()
+
 import numpy as np
 import streamlit as st
 import tensorflow as tf
