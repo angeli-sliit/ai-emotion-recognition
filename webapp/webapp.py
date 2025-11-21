@@ -7,6 +7,7 @@ Position your face in front of the camera for live emotion analysis.
 import os
 import time
 import sys
+import platform
 
 # Import streamlit first so we can show errors
 import streamlit as st
@@ -936,11 +937,11 @@ def main():
 
         col_start, col_stop = st.columns(2)
         with col_start:
-            if st.button("▶️ Start live detection", use_container_width=True):
+            if st.button("▶️ Start live detection", width='stretch'):
                 st.session_state.webcam_active = True
                 st.rerun()
         with col_stop:
-            if st.button("⏹ Stop", use_container_width=True):
+            if st.button("⏹ Stop", width='stretch'):
                 st.session_state.webcam_active = False
                 st.rerun()
 
@@ -954,10 +955,113 @@ def main():
             emotion_placeholder = st.empty()
             confidence_placeholder = st.empty()
 
-            # OpenCV webcam
-            cap = cv2.VideoCapture(0)
-            if not cap.isOpened():
+            # OpenCV webcam - try multiple camera indices
+            cap = None
+            camera_indices = [0, 1, 2]
+            error_messages = []
+            
+            # Detect platform for appropriate backend
+            is_windows = platform.system() == 'Windows'
+            is_linux = platform.system() == 'Linux'
+            
+            for camera_index in camera_indices:
+                try:
+                    # Try appropriate backend based on platform
+                    if is_windows:
+                        backends_to_try = [cv2.CAP_DSHOW, cv2.CAP_ANY]
+                    elif is_linux:
+                        backends_to_try = [cv2.CAP_V4L2, cv2.CAP_ANY]
+                    else:
+                        backends_to_try = [cv2.CAP_ANY]
+                    test_cap = None
+                    
+                    for backend in backends_to_try:
+                        try:
+                            test_cap = cv2.VideoCapture(camera_index, backend)
+                            # Give camera time to initialize
+                            time.sleep(0.1)
+                            
+                            if test_cap.isOpened():
+                                # Test if we can actually read a frame (try a few times)
+                                ret = False
+                                for _ in range(3):
+                                    ret, _ = test_cap.read()
+                                    if ret:
+                                        break
+                                    time.sleep(0.05)
+                                
+                                if ret:
+                                    cap = test_cap
+                                    break
+                                else:
+                                    test_cap.release()
+                                    test_cap = None
+                            else:
+                                if test_cap:
+                                    test_cap.release()
+                                test_cap = None
+                        except Exception as backend_error:
+                            if test_cap:
+                                try:
+                                    test_cap.release()
+                                except:
+                                    pass
+                            test_cap = None
+                            continue
+                    
+                    if cap:
+                        break
+                    elif test_cap:
+                        error_messages.append(f"Camera {camera_index}: Opened but cannot read frames")
+                        test_cap.release()
+                    else:
+                        error_messages.append(f"Camera {camera_index}: Failed to open with any backend")
+                        
+                except Exception as e:
+                    error_messages.append(f"Camera {camera_index}: Exception - {str(e)}")
+                    try:
+                        if 'test_cap' in locals() and test_cap:
+                            test_cap.release()
+                    except:
+                        pass
+            
+            if cap is None:
                 st.error("Unable to access webcam. Check camera permissions.")
+                st.info(f"Tried camera indices: {', '.join(map(str, camera_indices))}")
+                
+                # Check if running on a server/cloud environment
+                is_server = os.path.exists('/mount/src') or 'adminuser' in os.path.expanduser('~') or (platform.system() == 'Linux' and not os.path.exists('/dev/video0'))
+                
+                if is_server:
+                    st.warning("⚠️ **Server Environment Detected**")
+                    st.info("""
+                    This application is running on a cloud server where physical cameras are not available.
+                    Webcam functionality requires:
+                    - A local machine with a connected camera
+                    - Running the app locally (not on Streamlit Cloud or similar services)
+                    
+                    **To use webcam features:**
+                    1. Clone this repository to your local machine
+                    2. Install dependencies: `pip install -r requirements.txt`
+                    3. Run locally: `streamlit run webapp.py`
+                    
+                    **Note:** The Image Upload feature works perfectly on servers!
+                    """)
+                else:
+                    if error_messages:
+                        with st.expander("Detailed error messages"):
+                            for msg in error_messages:
+                                st.text(msg)
+                    st.info("**Troubleshooting tips:**")
+                    st.info("1. Ensure no other application is using the camera (Zoom, Teams, Camera app, etc.)")
+                    if platform.system() == 'Windows':
+                        st.info("2. Check Windows camera permissions: Settings → Privacy → Camera → Allow desktop apps")
+                    else:
+                        st.info("2. Check camera permissions and ensure /dev/video0 exists (Linux)")
+                    st.info("3. Try restarting the application")
+                    if platform.system() == 'Windows':
+                        st.info("4. Try running Streamlit as Administrator")
+                
                 st.session_state.webcam_active = False
             else:
                 cascade = cv2.CascadeClassifier(
@@ -1020,7 +1124,7 @@ def main():
                         video_placeholder.image(
                             frame_rgb,
                             channels="RGB",
-                            use_container_width=True,  # let CSS + max-width control the size
+                            width='stretch',  # let CSS + max-width control the size
                         )
 
                     if last_emotion:
@@ -1083,19 +1187,19 @@ def main():
                 with col_left:
                     st.markdown('<div style="text-align: center;">', unsafe_allow_html=True)
                     st.markdown("**Input image**")
-                    st.image(image, width=350, use_container_width=False)
+                    st.image(image, width=350)
                     st.markdown("</div>", unsafe_allow_html=True)
 
                 with col_right:
                     st.markdown('<div style="text-align: center;">', unsafe_allow_html=True)
                     st.markdown("**Detected face(s)**")
-                    st.image(img_draw, width=350, use_container_width=False)
+                    st.image(img_draw, width=350)
                     st.markdown("</div>", unsafe_allow_html=True)
 
                 # Center the analyze button
                 col_btn_left, col_btn_center, col_btn_right = st.columns([1, 2, 1])
                 with col_btn_center:
-                    if st.button("🔮 Analyze emotion", use_container_width=True):
+                    if st.button("🔮 Analyze emotion", width='stretch'):
                         x, y, w, h = faces[0]
                         face_roi = image.crop((x, y, x + w, y + h))
                         emotion, conf, all_preds = predict_emotion(model, face_roi)
