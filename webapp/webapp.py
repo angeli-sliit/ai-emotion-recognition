@@ -727,48 +727,28 @@ IMG_SIZE = 224
 # ─────────────────────────────────────────────────────────────
 # Model loading
 # ─────────────────────────────────────────────────────────────
-# Get the base directory (parent of webapp directory)
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-WEBAPP_DIR = os.path.dirname(os.path.abspath(__file__))
-
 MODEL_PATH = None
-candidates = [
-    os.path.join(BASE_DIR, "model", "mod_my_model01.keras"),  # model/mod_my_model01.keras
-    os.path.join(BASE_DIR, "mod_my_model01.keras"),  # mod_my_model01.keras in root
-    os.path.join(WEBAPP_DIR, "mod_my_model01.keras"),  # webapp/mod_my_model01.keras
-    "mod_my_model01.keras",  # current working directory
-    "../mod_my_model01.keras",  # parent directory (relative)
-    "../model/mod_my_model01.keras",  # model directory (relative)
-]
-
-for candidate in candidates:
+for candidate in [
+    "mod_my_model01.keras",
+    "../mod_my_model01.keras",
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "mod_my_model01.keras"),
+]:
     if os.path.exists(candidate):
         MODEL_PATH = candidate
         break
 
 if MODEL_PATH is None:
-    MODEL_PATH = os.path.join(BASE_DIR, "model", "mod_my_model01.keras")  # Default to model directory
+    MODEL_PATH = "mod_my_model01.keras"  # fall back path
 
 
 @st.cache_resource
 def load_model():
     try:
-        if not os.path.exists(MODEL_PATH):
-            st.error(f"Model file not found at: {MODEL_PATH}")
-            st.info("Searched in the following locations:")
-            for i, candidate in enumerate(candidates, 1):
-                exists = "✓" if os.path.exists(candidate) else "✗"
-                st.text(f"{i}. {exists} {candidate}")
-            return None
         model = keras.models.load_model(MODEL_PATH)
         return model
     except Exception as e:
         st.error(f"Error loading model: {e}")
         st.info(f"Tried model path: {MODEL_PATH}")
-        st.info("Searched in the following locations:")
-        for i, candidate in enumerate(candidates, 1):
-            exists = "✓" if os.path.exists(candidate) else "✗"
-            st.text(f"{i}. {exists} {candidate}")
         return None
 
 
@@ -923,9 +903,6 @@ def main():
     Use your webcam to stream live video. The model will periodically analyze your face and display 
     the dominant emotion with its confidence level.
   </p>
-  <p style="font-size:0.85rem;color:#10b981;margin-top:0.5rem;padding:0.5rem;background:rgba(16,185,129,0.1);border-radius:6px;border-left:3px solid #10b981;">
-    ✅ <strong>Note:</strong> Camera access works in your browser! Click the camera button to capture photos for real-time emotion detection. Works on both local and cloud deployments.
-  </p>
 </div>
 """,
             unsafe_allow_html=True,
@@ -942,165 +919,108 @@ def main():
                 st.rerun()
 
         if st.session_state.webcam_active:
-            # Initialize session state for live detection
-            if "last_emotion" not in st.session_state:
-                st.session_state.last_emotion = None
-            if "last_conf" not in st.session_state:
-                st.session_state.last_conf = 0.0
-            if "frame_counter" not in st.session_state:
-                st.session_state.frame_counter = 0
-            if "auto_capture" not in st.session_state:
-                st.session_state.auto_capture = False
-            
-            # Use Streamlit's native camera_input for live detection
-            st.info("📷 **Live Detection:** Click the camera button to capture frames. Enable auto-capture below for continuous detection!")
-            
-            # Browser permissions info
-            with st.expander("ℹ️ Camera Access Help", expanded=False):
-                st.markdown("""
-                **If camera doesn't appear:**
-                1. Check browser address bar for camera permission icon 🔒
-                2. Click the icon and allow camera access
-                3. Make sure no other app is using your camera
-                4. Try refreshing the page
-                
-                **Note:** Browser console warnings (like "Unrecognized feature") are normal and don't affect camera functionality.
-                """)
-            
-            # Center the camera input
+          
+            # Center the webcam in the middle column
             left, middle, right = st.columns([1, 2, 1])
             with middle:
-                # Use dynamic key for auto-refresh
-                camera_key = f"live_camera_{st.session_state.frame_counter}" if st.session_state.auto_capture else "live_camera"
-                try:
-                    camera_photo = st.camera_input(
-                        "Live emotion detection",
-                        key=camera_key,
-                        help="Click the camera button to capture frames for emotion detection. Allow camera access when prompted."
-                    )
-                except Exception as e:
-                    st.error(f"❌ Camera access error: {str(e)}")
-                    st.info("""
-                    **Troubleshooting:**
-                    - Check browser permissions (click 🔒 in address bar)
-                    - Ensure camera is not used by another application
-                    - Try using a different browser (Chrome, Firefox, Edge)
-                    - Make sure you're using HTTPS (required for camera access)
-                    """)
-                    camera_photo = None
-            
-            # Auto-capture controls
-            auto_col1, auto_col2 = st.columns([1, 1])
-            with auto_col1:
-                if st.button("🔄 Enable Auto-Capture", use_container_width=True, disabled=st.session_state.auto_capture):
-                    st.session_state.auto_capture = True
-                    st.session_state.frame_counter += 1
-                    st.rerun()
-            with auto_col2:
-                if st.button("⏸️ Disable Auto-Capture", use_container_width=True, disabled=not st.session_state.auto_capture):
-                    st.session_state.auto_capture = False
-                    st.rerun()
-            
+                video_placeholder = st.empty()   # no extra HTML wrapper
+
             emotion_placeholder = st.empty()
             confidence_placeholder = st.empty()
-            video_placeholder = st.empty()
-            
-            # Process camera input for live detection
-            if camera_photo is not None:
-                # Convert camera photo to PIL Image
-                img = Image.open(camera_photo)
-                img_array = np.array(img)
-                
-                # Convert to RGB if needed (fix the bug - RGB2RGB doesn't exist)
-                if len(img_array.shape) == 3:
-                    if img_array.shape[2] == 4:  # RGBA
-                        img_array = cv2.cvtColor(img_array, cv2.COLOR_RGBA2RGB)
-                    # If already RGB (shape[2] == 3), no conversion needed - it's already RGB
-                
-                # Detect faces using OpenCV
+
+            # OpenCV webcam
+            cap = cv2.VideoCapture(0)
+            if not cap.isOpened():
+                st.error("Unable to access webcam. Check camera permissions.")
+                st.session_state.webcam_active = False
+            else:
                 cascade = cv2.CascadeClassifier(
                     cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
                 )
-                gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
-                faces = cascade.detectMultiScale(gray, 1.1, 4)
-                
-                if len(faces) > 0:
-                    # Process the first detected face
-                    x, y, w, h = faces[0]
-                    face_roi = img_array[y : y + h, x : x + w]
-                    
-                    try:
-                        emotion, conf, all_preds = predict_emotion(
-                            model, Image.fromarray(face_roi)
+                last_emotion = None
+                last_conf = 0.0
+                frame_count = 0
+
+                while st.session_state.webcam_active:
+                    ret, frame = cap.read()
+                    if not ret:
+                        st.error("Failed to read from webcam.")
+                        break
+
+                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                    faces = cascade.detectMultiScale(gray, 1.1, 4)
+
+                    if len(faces) > 0 and frame_count % 5 == 0:
+                        x, y, w, h = faces[0]
+                        face_roi = frame_rgb[y : y + h, x : x + w]
+                        try:
+                            emotion, conf, all_preds = predict_emotion(
+                                model, Image.fromarray(face_roi)
+                            )
+                            last_emotion = emotion
+                            last_conf = conf
+                        except Exception:
+                            pass
+
+                    # draw overlay
+                    for (x, y, w, h) in faces:
+                        color_hex = EMOTION_COLORS.get(last_emotion, "#6366f1")
+                        color_rgb = tuple(int(color_hex[i : i + 2], 16) for i in (1, 3, 5))
+                        cv2.rectangle(frame_rgb, (x, y), (x + w, y + h), color_rgb, 2)
+                        if last_emotion:
+                            label = f"{EMOTION_EMOJIS.get(last_emotion, '😊')} {last_emotion} ({last_conf:.0%})"
+                            font = cv2.FONT_HERSHEY_SIMPLEX
+                            (tw, th), baseline = cv2.getTextSize(label, font, 0.6, 2)
+                            cv2.rectangle(
+                                frame_rgb,
+                                (x, y - th - 10),
+                                (x + tw, y),
+                                color_rgb,
+                                -1,
+                            )
+                            cv2.putText(
+                                frame_rgb,
+                                label,
+                                (x, y - 5),
+                                font,
+                                0.6,
+                                (255, 255, 255),
+                                2,
+                            )
+
+                    # show frame in center column - let CSS + max-width control the size
+                    with middle:
+                        video_placeholder.image(
+                            frame_rgb,
+                            channels="RGB",
+                            use_container_width=True,  # let CSS + max-width control the size
                         )
-                        st.session_state.last_emotion = emotion
-                        st.session_state.last_conf = conf
-                    except Exception as e:
-                        # Keep previous emotion if error occurs
-                        emotion = st.session_state.last_emotion
-                        conf = st.session_state.last_conf
-                
-                emotion = st.session_state.last_emotion
-                conf = st.session_state.last_conf
-                
-                if emotion:
-                    # Draw rectangle and label on the image
-                    color_hex = EMOTION_COLORS.get(emotion, "#6366f1")
-                    color_rgb = tuple(int(color_hex[i : i + 2], 16) for i in (1, 3, 5))
-                    cv2.rectangle(img_array, (x, y), (x + w, y + h), color_rgb, 3)
-                    
-                    label = f"{EMOTION_EMOJIS.get(emotion, '😊')} {emotion} ({conf:.0%})"
-                    font = cv2.FONT_HERSHEY_SIMPLEX
-                    (tw, th), baseline = cv2.getTextSize(label, font, 0.7, 2)
-                    cv2.rectangle(
-                        img_array,
-                        (x, y - th - 15),
-                        (x + tw + 10, y),
-                        color_rgb,
-                        -1,
-                    )
-                    cv2.putText(
-                        img_array,
-                        label,
-                        (x + 5, y - 8),
-                        font,
-                        0.7,
-                        (255, 255, 255),
-                        2,
-                    )
-                    
-                    # Display emotion results
-                    color = EMOTION_COLORS.get(emotion, "#6366f1")
-                    emoji = EMOTION_EMOJIS.get(emotion, "😊")
-                    desc = EMOTION_DESCRIPTIONS.get(emotion, "")
-                    emotion_placeholder.markdown(
-                        f"""
-                            <div class="result-card">
-                            <div class="result-emoji">{emoji}</div>
-                            <div class="result-label" style="color:{color};">{emotion}</div>
-                            <div class="result-confidence">Confidence: {conf:.1%}</div>
-                            <div class="result-desc">{desc}</div>
-                            </div>
-                            """,
-                        unsafe_allow_html=True,
-                    )
-                    confidence_placeholder.progress(conf)
-                else:
-                    emotion_placeholder.info("Processing... Align your face with the camera.")
-                    confidence_placeholder.empty()
-                
-                # Display the annotated image
-                with middle:
-                    video_placeholder.image(img_array, use_container_width=True, channels="RGB")
-            else:
-                emotion_placeholder.info("No face detected. Please ensure your face is clearly visible.")
-                confidence_placeholder.empty()
-            
-            # Auto-refresh for continuous detection
-            if st.session_state.webcam_active and st.session_state.auto_capture:
-                time.sleep(1.0)  # Wait 1 second between captures
-                st.session_state.frame_counter += 1
-                st.rerun()
+
+                    if last_emotion:
+                        color = EMOTION_COLORS.get(last_emotion, "#6366f1")
+                        emoji = EMOTION_EMOJIS.get(last_emotion, "😊")
+                        desc = EMOTION_DESCRIPTIONS.get(last_emotion, "")
+                        emotion_placeholder.markdown(
+                            f"""
+                                <div class="result-card">
+                                <div class="result-emoji">{emoji}</div>
+                                <div class="result-label" style="color:{color};">{last_emotion}</div>
+                                <div class="result-confidence">Confidence: {last_conf:.1%}</div>
+                                <div class="result-desc">{desc}</div>
+                                </div>
+                                """,
+                            unsafe_allow_html=True,
+                        )
+                        confidence_placeholder.progress(last_conf)
+                    else:
+                        emotion_placeholder.info("Align your face with the camera.")
+                        confidence_placeholder.empty()
+
+                    frame_count += 1
+                    time.sleep(0.03)
+
+                cap.release()
         else:
             st.info("Press **Start live detection** to activate the webcam.")
 
