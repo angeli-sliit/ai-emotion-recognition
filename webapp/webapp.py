@@ -923,6 +923,9 @@ def main():
     Use your webcam to stream live video. The model will periodically analyze your face and display 
     the dominant emotion with its confidence level.
   </p>
+  <p style="font-size:0.85rem;color:#fbbf24;margin-top:0.5rem;padding:0.5rem;background:rgba(251,191,36,0.1);border-radius:6px;border-left:3px solid #fbbf24;">
+    ⚠️ <strong>Note:</strong> Webcam access requires local execution. On Streamlit Cloud, please use the <strong>📸 Upload Image</strong> tab instead.
+  </p>
 </div>
 """,
             unsafe_allow_html=True,
@@ -948,10 +951,30 @@ def main():
             emotion_placeholder = st.empty()
             confidence_placeholder = st.empty()
 
+            # Check if running on Streamlit Cloud (no webcam access available)
+            is_cloud = os.environ.get("STREAMLIT_SERVER_PORT") is not None or \
+                      os.environ.get("STREAMLIT_SHARING_MODE") is not None
+            
             # OpenCV webcam
             cap = cv2.VideoCapture(0)
             if not cap.isOpened():
-                st.error("Unable to access webcam. Check camera permissions.")
+                if is_cloud:
+                    st.warning("⚠️ **Webcam access is not available on Streamlit Cloud**")
+                    st.info("""
+                    **Why?** Streamlit Cloud runs on remote servers without camera access.
+                    
+                    **Alternative:** Use the **📸 Upload Image** tab to analyze emotions from uploaded photos instead.
+                    """)
+                else:
+                    st.error("❌ **Unable to access webcam**")
+                    st.info("""
+                    **Possible reasons:**
+                    - Camera permissions not granted
+                    - Camera is being used by another application
+                    - No camera detected on your device
+                    
+                    **Alternative:** Use the **📸 Upload Image** tab to analyze emotions from uploaded photos.
+                    """)
                 st.session_state.webcam_active = False
             else:
                 cascade = cv2.CascadeClassifier(
